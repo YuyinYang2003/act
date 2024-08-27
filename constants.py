@@ -1,7 +1,8 @@
 import pathlib
 
 ### Task parameters
-DATA_DIR = '<put your data dir here>'
+#DATA_DIR = '/ailab/group/groups/smartbot/tianyang/Dual_Arm_RLBench/training/coordinated_lift_ball/all_variations/episodes'
+DATA_DIR = '/ailab/user/yangyuyin/data/act'
 SIM_TASK_CONFIGS = {
     'sim_transfer_cube_scripted':{
         'dataset_dir': DATA_DIR + '/sim_transfer_cube_scripted',
@@ -30,6 +31,31 @@ SIM_TASK_CONFIGS = {
         'episode_len': 500,
         'camera_names': ['top']
     },
+    'sim_bimanual_pick_plate': {
+        'dataset_dir': '/ailab/group/groups/smartbot/tianyang/Dual_Arm_RLBench/training/bimanual_pick_plate/all_variations/episodes',
+        'num_episodes': 100,
+        'episode_len': 400,
+        'camera_names': ['over_shoulder_left','over_shoulder_right','overhead','wrist_right','wrist_left','front']
+    },
+    'sim_coordinated_lift_ball': {
+        'dataset_dir': '/ailab/group/groups/smartbot/tianyang/Dual_Arm_RLBench/training/coordinated_lift_ball/all_variations/episodes',
+        'num_episodes': 100,
+        'episode_len': 400,
+        'camera_names': ['over_shoulder_left','over_shoulder_right','overhead','wrist_right','wrist_left','front']
+    },
+    'sim_handover_item': {
+        'dataset_dir': '/ailab/group/groups/smartbot/tianyang/Dual_Arm_RLBench/training/handover_item/all_variations/episodes',
+        'num_episodes': 100,
+        'episode_len': 400,
+        'camera_names': ['over_shoulder_left','over_shoulder_right','overhead','wrist_right','wrist_left','front']
+    },
+    'sim_coordinated_lift_tray': {
+        'dataset_dir': '/ailab/group/groups/smartbot/tianyang/Dual_Arm_RLBench/training/coordinated_lift_tray/all_variations/episodes',
+        'num_episodes': 100,
+        'episode_len': 400,
+        'camera_names': ['over_shoulder_left','over_shoulder_right','overhead','wrist_right','wrist_left','front']
+    }
+
 }
 
 ### Simulation envs fixed constants

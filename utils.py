@@ -8,6 +8,8 @@ import IPython
 import pdb
 from PIL import Image
 e = IPython.embed
+from rlbench.backend.utils import image_to_float_array
+from pdb import set_trace 
 
 
 class EpisodicDataset(torch.utils.data.Dataset):
@@ -50,6 +52,7 @@ class EpisodicDataset(torch.utils.data.Dataset):
             else:
                 action = root['/action'][max(0, start_ts - 1):] # hack, to make timesteps more aligned
                 action_len = episode_len - max(0, start_ts - 1) # hack, to make timesteps more aligned
+        # set_trace()
 
         self.is_sim = is_sim
         padded_action = np.zeros(original_action_shape, dtype=np.float32)
@@ -87,7 +90,8 @@ class Peract2Dataset(torch.utils.data.Dataset):
         self.dataset_dir = dataset_dir
         #self.camera_names = camera_names
         #todo
-        self.camera_names = ["over_shoulder_left", "over_shoulder_right", "overhead", "wrist_right", "wrist_left", "front"]
+        #"over_shoulder_left","over_shoulder_right","overhead","wrist_left","wrist_right","front"
+        self.camera_names = ["over_shoulder_left","over_shoulder_right","overhead","wrist_right","wrist_left","front"]
         self.norm_stats = norm_stats
         self.is_sim = None
         self.__getitem__(0) # initialize self.is_sim
@@ -100,9 +104,10 @@ class Peract2Dataset(torch.utils.data.Dataset):
         # episodes/episode0/over_shoulder_left_rgb/rgb_0000.png
         # episodes/episode0/low_dim_obs.pkl(variation_description/variation_number)
 
+        # set_trace()
 
         sample_full_episode = False # hardcode
-
+        #sample_full_episode = True
         episode_id = self.episode_ids[index]
         # TODO
         dataset_path = os.path.join(self.dataset_dir, f'episode{episode_id}')
@@ -119,9 +124,11 @@ class Peract2Dataset(torch.utils.data.Dataset):
                 start_ts = np.random.choice(num_steps)
             left_joint_positions = np.asarray(obs[start_ts].left.joint_positions, dtype=np.float32)
             left_gripper_positions = np.asarray(obs[start_ts].left.gripper_joint_positions[0], dtype=np.float32)
+            left_gripper_positions = np.clip(left_gripper_positions, 0.0, 0.04)
             left_gripper_positions = np.expand_dims(left_gripper_positions,axis=-1)
             right_joint_positions = np.asarray(obs[start_ts].right.joint_positions, dtype=np.float32)
             right_gripper_positions = np.asarray(obs[start_ts].right.gripper_joint_positions[0], dtype=np.float32)
+            right_gripper_positions = np.clip(right_gripper_positions, 0.0, 0.04)
             right_gripper_positions = np.expand_dims(right_gripper_positions,axis=-1)
             # 可能需要一些预处理，见ee_sim_env.py
             #print(left_joint_positions)
@@ -134,9 +141,11 @@ class Peract2Dataset(torch.utils.data.Dataset):
             for i in range(num_steps - start_ts):
                 left_joint_positions_i = obs[start_ts + i].left.joint_positions
                 left_gripper_positions_i = obs[start_ts + i].left.gripper_joint_positions[0]
+                left_gripper_positions_i = np.clip(left_gripper_positions_i, 0.0, 0.04)
                 left_gripper_positions_i = np.expand_dims(left_gripper_positions_i,axis=-1)
                 right_joint_positions_i = obs[start_ts + i].right.joint_positions
                 right_gripper_positions_i = obs[start_ts + i].right.gripper_joint_positions[0]
+                right_gripper_positions_i = np.clip(right_gripper_positions_i, 0.0, 0.04)
                 right_gripper_positions_i = np.expand_dims(right_gripper_positions_i,axis=-1)
                 qpo_i = np.concatenate([right_joint_positions_i, right_gripper_positions_i, left_joint_positions_i, left_gripper_positions_i], axis=-1)
                 action.append(qpo_i)
@@ -147,13 +156,16 @@ class Peract2Dataset(torch.utils.data.Dataset):
             for cam_name in self.camera_names:
                 camera_full_name = f"{cam_name}_{dtype}"
                 data_path = os.path.join(dataset_path, camera_full_name, f"{dtype}_{start_ts:04d}.png")
-                image = Image.open(data_path).convert("RGB")
+                image = np.array(Image.open(data_path).resize([128,128]))
                 #pdb.set_trace()
                 image_dict[cam_name] = np.array(image)
         # padded_action = 
+        # set_trace()
         action_len = num_steps - start_ts
         padded_action = np.zeros((400,16), dtype=np.float32)
         padded_action[:action_len] = action
+        #debug
+        #set_trace()
         is_pad = np.zeros(400)
         is_pad[action_len:] = 1
         all_cam_images = []
@@ -173,6 +185,8 @@ class Peract2Dataset(torch.utils.data.Dataset):
         image_data = image_data / 255.0
         action_data = (action_data - self.norm_stats["qpos_mean"]) / self.norm_stats["qpos_std"]
         qpos_data = (qpos_data - self.norm_stats["qpos_mean"]) / self.norm_stats["qpos_std"]
+
+        # set_trace()
 
         return image_data, qpos_data, action_data, is_pad
 
@@ -213,22 +227,32 @@ def get_norm_stats_peract2(dataset_dir, num_episodes):
     all_qpos_data = []
     all_action_data = []
     sample_full_episode = False # hardcode
+    right_joint_positions = []
+    left_joint_positions = []
+    right_gripper_positions = []
+    left_gripper_positions = []
     for episode_idx in range(num_episodes):
         dataset_path = os.path.join(dataset_dir, f'episode{episode_idx}')
         with open(os.path.join(dataset_path, "low_dim_obs.pkl"), 'rb') as f:
             # qpos_data
             obs = pickle.load(f)
             num_steps = len(obs)
-            if sample_full_episode:
-                start_ts = 0
-            else:
-                start_ts = np.random.choice(num_steps)
-            left_joint_positions = np.asarray(obs[start_ts].left.joint_positions, dtype=np.float32)
+            #if sample_full_episode:
+            #    start_ts = 0
+            #else:
+            #    start_ts = np.random.choice(num_steps)
+            for o in obs:
+                right_joint_positions.append(o.right.joint_positions)
+                left_joint_positions.append(o.left.joint_positions)
+                right_gripper_positions.append([o.right.gripper_joint_positions[0]])
+                left_gripper_positions.append([o.left.gripper_joint_positions[0]])
+
+            '''left_joint_positions = np.asarray(obs[start_ts].left.joint_positions, dtype=np.float32)
             left_gripper_positions = np.asarray(obs[start_ts].left.gripper_joint_positions[0], dtype=np.float32)
             left_gripper_positions = np.expand_dims(left_gripper_positions,axis=-1)
             right_joint_positions = np.asarray(obs[start_ts].right.joint_positions, dtype=np.float32)
             right_gripper_positions = np.asarray(obs[start_ts].right.gripper_joint_positions[0], dtype=np.float32)
-            right_gripper_positions = np.expand_dims(right_gripper_positions,axis=-1)
+            right_gripper_positions = np.expand_dims(right_gripper_positions,axis=-1)'''
             # 可能需要一些预处理，见ee_sim_env.py
             #print(left_joint_positions) #7维度
             #print(left_gripper_positions) #1维度
@@ -245,7 +269,7 @@ def get_norm_stats_peract2(dataset_dir, num_episodes):
                 qpo_i = np.concatenate([left_joint_positions_i, left_gripper_positions_i, right_joint_positions_i, right_gripper_positions_i], axis=-1)
                 action.append(qpo_i)
             action = np.array(action)'''
-        all_qpos_data.append(torch.from_numpy(qpos))
+        '''all_qpos_data.append(torch.from_numpy(qpos))
         #all_action_data.append(torch.from_numpy(action))
     all_qpos_data = torch.stack(all_qpos_data)
     #all_action_data = torch.stack(all_action_data)
@@ -255,15 +279,19 @@ def get_norm_stats_peract2(dataset_dir, num_episodes):
     #action_mean = all_action_data.mean(dim=[0, 1], keepdim=True)
     #action_std = all_action_data.std(dim=[0, 1], keepdim=True)
     #action_std = torch.clip(action_std, 1e-2, np.inf) # clipping
-    #pdb.set_trace()
+    pdb.set_trace()
     # normalize qpos data
     qpos_mean = all_qpos_data.mean(dim=[0, 1], keepdim=True)
     qpos_std = all_qpos_data.std(dim=[0, 1], keepdim=True)
-    qpos_std = torch.clip(qpos_std, 1e-2, np.inf) # clipping
-
-    stats = {"qpos_mean": qpos_mean.numpy().squeeze(), "qpos_std": qpos_std.numpy().squeeze(),
-             "example_qpos": qpos}
-    return stats
+    #qpos_std = torch.clip(qpos_std, 1e-2, np.inf) # clipping'''
+    right_joint_positions = np.asarray(right_joint_positions, dtype=np.float32)
+    left_joint_positions = np.asarray(left_joint_positions, dtype=np.float32)
+    right_gripper_positions = np.asarray(right_gripper_positions, dtype=np.float32)
+    left_gripper_positions = np.asarray(left_gripper_positions, dtype=np.float32)
+    stats = {"qpos_mean": np.concatenate([right_joint_positions.mean(axis=0), right_gripper_positions.mean(axis=0),left_joint_positions.mean(axis=0),left_gripper_positions.mean(axis=0)],axis=-1),"qpos_std":np.concatenate([right_joint_positions.std(axis=0), right_gripper_positions.std(axis=0),left_joint_positions.std(axis=0),left_gripper_positions.std(axis=0)],axis=-1),"example_qpos":qpos}
+    #pdb.set_trace()
+    #stats = {k: torch.from_numpy(v).to(self._device) for k,v in stats.items()}
+    return {k: torch.from_numpy(v) for k,v in stats.items()}
 
 
 def load_data(dataset_dir, num_episodes, camera_names, batch_size_train, batch_size_val):
@@ -280,8 +308,8 @@ def load_data(dataset_dir, num_episodes, camera_names, batch_size_train, batch_s
     # construct dataset and dataloader
     train_dataset = EpisodicDataset(train_indices, dataset_dir, camera_names, norm_stats)
     val_dataset = EpisodicDataset(val_indices, dataset_dir, camera_names, norm_stats)
-    train_dataloader = DataLoader(train_dataset, batch_size=batch_size_train, shuffle=True, pin_memory=True, num_workers=1, prefetch_factor=1)
-    val_dataloader = DataLoader(val_dataset, batch_size=batch_size_val, shuffle=True, pin_memory=True, num_workers=1, prefetch_factor=1)
+    train_dataloader = DataLoader(train_dataset, batch_size=batch_size_train, shuffle=True, pin_memory=True, num_workers=8, prefetch_factor=1)
+    val_dataloader = DataLoader(val_dataset, batch_size=batch_size_val, shuffle=True, pin_memory=True, num_workers=8, prefetch_factor=1)
 
     return train_dataloader, val_dataloader, norm_stats, train_dataset.is_sim
 
@@ -299,9 +327,11 @@ def load_data_peract2(dataset_dir, num_episodes, camera_names, batch_size_train,
     # construct dataset and dataloader
     train_dataset = Peract2Dataset(train_indices, dataset_dir, camera_names, norm_stats)
     val_dataset = Peract2Dataset(val_indices, dataset_dir, camera_names, norm_stats)
-    train_dataloader = DataLoader(train_dataset, batch_size=batch_size_train, shuffle=True, pin_memory=True, num_workers=1, prefetch_factor=1)
-    val_dataloader = DataLoader(val_dataset, batch_size=batch_size_val, shuffle=True, pin_memory=True, num_workers=1, prefetch_factor=1)
-
+    train_dataloader = DataLoader(train_dataset, batch_size=batch_size_train, shuffle=True, pin_memory=True, num_workers=8, prefetch_factor=1)
+    val_dataloader = DataLoader(val_dataset, batch_size=batch_size_val, shuffle=True, pin_memory=True, num_workers=8, prefetch_factor=1)
+    #debug
+    #train_dataloader = DataLoader(train_dataset, batch_size=batch_size_train, shuffle=True, pin_memory=True, num_workers=0)
+    #val_dataloader = DataLoader(val_dataset, batch_size=batch_size_val, shuffle=True, pin_memory=True, num_workers=0)
     return train_dataloader, val_dataloader, norm_stats, train_dataset.is_sim
 
 

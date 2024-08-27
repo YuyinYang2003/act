@@ -33,6 +33,7 @@ def main(args):
     batch_size_train = args['batch_size']
     batch_size_val = args['batch_size']
     num_epochs = args['num_epochs']
+    peract2_task_list = ["sim_bimanual_pick_plate", "sim_coordinated_lift_ball", "sim_handover_item", "sim_coordinated_lift_tray"]
 
     # get task parameters
     is_sim = task_name[:4] == 'sim_'
@@ -100,7 +101,7 @@ def main(args):
             print(f'{ckpt_name}: {success_rate=} {avg_return=}')
         print()
         exit()
-    if task_name == "sim_bimanual_pick_plate":
+    if task_name in peract2_task_list:
         train_dataloader, val_dataloader, stats, _ = load_data_peract2(dataset_dir, num_episodes, camera_names, batch_size_train, batch_size_val)
     else:
         train_dataloader, val_dataloader, stats, _ = load_data(dataset_dir, num_episodes, camera_names, batch_size_train, batch_size_val)
